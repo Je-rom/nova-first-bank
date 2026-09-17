@@ -1,3 +1,20 @@
+# services:
+#   postgres:
+#     image: postgres:16
+#     container_name: novawallet-postgres
+#     restart: unless-stopped
+#     environment:
+#       POSTGRES_DB: NovaWallet
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: me123
+#     ports:
+#       - "5433:5432"
+#     volumes:
+#       - novawallet_postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   novawallet_postgres_data:
+
 services:
   postgres:
     image: postgres:16
@@ -11,6 +28,28 @@ services:
       - "5433:5432"
     volumes:
       - novawallet_postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novawallet-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ConnectionStrings__PostgresDatabase: Host=postgres;Port=5432;Database=NovaWallet;Username=postgres;Password=me123
+
+      Jwt__Issuer: NovaWalletApi
+      Jwt__Audience: NovaWalletClients
+      Jwt__Key: dev-only-signing-key-change-me-min-32-chars-long
+
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      - postgres
 
 volumes:
   novawallet_postgres_data:

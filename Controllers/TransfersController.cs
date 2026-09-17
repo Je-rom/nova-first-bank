@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using NovaWallet.Dtos.Transfer;
 using NovaWallet.Interfaces;
 
@@ -18,17 +19,18 @@ namespace NovaWallet.Controllers
         }
 
         [HttpPost]
+        [EnableRateLimiting("TransferPolicy")]
         [ProducesResponseType(typeof(TransferResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status402PaymentRequired)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public async Task<ActionResult<TransferResponseDto>> CreateTransfer(
             [FromBody] TransferRequestDto request,
             [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
         {
-
             if (!ModelState.IsValid)
                 return ValidationProblem(ModelState);
 

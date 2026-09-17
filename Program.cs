@@ -7,6 +7,8 @@ using NovaWallet.Interfaces;
 using NovaWallet.Middleware;
 using NovaWallet.Repositories;
 using NovaWallet.Services;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,7 +27,7 @@ var jwtKey = builder.Configuration["Jwt:Key"]
              ?? throw new InvalidOperationException("Jwt:Key is not configured.");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "NovaWalletApi";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "NovaWalletClients";
- 
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -41,8 +43,47 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.FromSeconds(30)
         };
     });
- 
+
 builder.Services.AddAuthorization();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("TransferPolicy", httpContext =>
+    {
+        var partitionKey = httpContext.User.FindFirst("sub")?.Value
+                            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                            ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 3,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/problem+json";
+
+        var problem = new Microsoft.AspNetCore.Mvc.ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Title = "TooManyRequests",
+            Detail = "Too many transfer attempts. Please slow down and try again shortly.",
+            Type = "https://novawallet.firstbank.example/problems/rate-limit-exceeded",
+            Instance = context.HttpContext.Request.Path
+        };
+
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            problem,
+            cancellationToken);
+    };
+});
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -56,6 +97,12 @@ builder.Services.AddScoped<IWalletService, WalletService>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<NovaWalletDbContext>();
+    db.Database.Migrate();
+}
+
 app.UseExceptionHandler(_ => { });
 
 // Configure the HTTP request pipeline.
@@ -68,6 +115,8 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.MapControllers();
 
