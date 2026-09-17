@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: novawallet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: NovaWallet
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: me123
+    ports:
+      - "5433:5432"
+    volumes:
+      - novawallet_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  novawallet_postgres_data:
