@@ -10,7 +10,6 @@ using NovaWallet.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -71,5 +70,39 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapPost("/dev/token", (string customerId) =>
+    {
+        var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+
+        var key = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(jwtKey)
+        );
+
+        var credentials = new SigningCredentials(
+            key,
+            SecurityAlgorithms.HmacSha256
+        );
+
+        var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(
+            issuer: jwtIssuer,
+            audience: jwtAudience,
+            claims: new[]
+            {
+                new System.Security.Claims.Claim("sub", customerId)
+            },
+            expires: DateTime.UtcNow.AddHours(4),
+            signingCredentials: credentials
+        );
+
+        return Results.Ok(new
+        {
+            token = tokenHandler.WriteToken(token)
+        });
+    });
+}
 
 app.Run();

@@ -44,9 +44,6 @@ namespace NovaWallet.Services
 
             var requestHash = ComputeRequestHash(request);
 
-            // ---- Step 1: idempotency check, BEFORE any wallet locking ----
-            // Cheap and race-safe via the DB unique constraint on IdempotencyKey.
-            // Catches duplicate requests before we pay the cost of locking rows.
             var (created, transfer) = await _transferRepository.CreatePendingOrGetExistingAsync(
                 request.FromWalletId,
                 request.ToWalletId,
@@ -60,16 +57,9 @@ namespace NovaWallet.Services
                 if (transfer.RequestHash != requestHash)
                     throw new IdempotencyConflictException(idempotencyKey);
 
-                // Same key, same payload = safe replay. Whatever the stored
-                // outcome was (Completed or Failed), return it rather than
-                // reprocessing. NOTE: if a prior attempt is still "Pending" this
-                // means it crashed mid-flight before completing — a known gap,
-                // documented in README as a place a background reconciliation
-                // job would be needed in production.
                 return MapToResponse(transfer);
             }
 
-            // ---- Step 2: the locked, money-moving transaction ----
             await using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
             try
@@ -97,11 +87,9 @@ namespace NovaWallet.Services
                     throw new DailyLimitExceededException(
                         fromWallet.Id, alreadySentToday + request.AmountKobo, PolicyConstants.DailyOutboundLimitKobo);
 
-                // ---- Mutate balances (plain integer kobo arithmetic only) ----
                 fromWallet.BalanceKobo -= request.AmountKobo;
                 toWallet.BalanceKobo += request.AmountKobo;
 
-                // ---- Ledger entries (the statement table) ----
                 _walletRepository.AddTransaction(WalletTransactionFor(
                     fromWallet.Id, TransactionType.DebitTransfer, request.AmountKobo,
                     fromWallet.Currency, fromWallet.BalanceKobo, transfer.Id));
@@ -110,7 +98,6 @@ namespace NovaWallet.Services
                     toWallet.Id, TransactionType.CreditTransfer, request.AmountKobo,
                     toWallet.Currency, toWallet.BalanceKobo, transfer.Id));
 
-                // ---- Audit log (separate, append-only trail) ----
                 _auditLogRepository.Add(AuditEntryFor(fromWallet.Id, "DebitTransfer",
                     fromWallet.BalanceKobo + request.AmountKobo, fromWallet.BalanceKobo));
 
@@ -130,11 +117,6 @@ namespace NovaWallet.Services
             {
                 await dbTransaction.RollbackAsync();
 
-                // The main transaction rolled back, so the wallet/ledger changes
-                // above never happened — but the Transfer row itself was already
-                // committed independently in Step 1. Record the failure on it in
-                // a fresh, separate save so the row doesn't sit at "Pending"
-                // forever and a replay of this key can see the failure outcome.
                 await MarkTransferFailedIndependently(transfer.Id);
                 throw;
             }
@@ -155,8 +137,7 @@ namespace NovaWallet.Services
             }
             catch (Exception ex)
             {
-                // Don't let a bookkeeping failure here mask the original error —
-                // just log it.
+   
                 _logger.LogError(ex, "Failed to mark Transfer {TransferId} as Failed", transferId);
             }
         }

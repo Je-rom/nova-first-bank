@@ -7,8 +7,6 @@ namespace NovaWallet.Repositories
 {
     public class WalletRepository : IWalletRepository
     {
-        // WAT = West Africa Time, UTC+1, no DST. Use the IANA id ("Africa/Lagos")
-        // rather than the Windows id since this runs in a Linux container.
         private static readonly TimeZoneInfo WatTimeZone =
             TimeZoneInfo.FindSystemTimeZoneById("Africa/Lagos");
 
@@ -40,20 +38,12 @@ namespace NovaWallet.Repositories
 
         public async Task<List<Wallet>> GetForUpdateAsync(IEnumerable<Guid> walletIds)
         {
-            // THE deadlock-avoidance trick: lock wallets one at a time, in a fixed
-            // ascending-Id order, no matter which direction the transfer runs.
-            // A->B and a concurrent B->A both try to lock the lower Id first, so
-            // neither can end up blocked waiting on the other — no deadlock possible.
             var orderedIds = walletIds.Distinct().OrderBy(id => id).ToList();
 
             var wallets = new List<Wallet>(orderedIds.Count);
 
             foreach (var id in orderedIds)
             {
-                // Each of these blocks if another transaction already holds the
-                // lock on this row, until that transaction commits or rolls back.
-                // MUST be called inside an active transaction on _context, or the
-                // lock is released immediately and provides no protection.
                 var result = await _context.Wallets
                     .FromSqlInterpolated($@"SELECT * FROM ""Wallets"" WHERE ""Id"" = {id} FOR UPDATE")
                     .AsTracking()

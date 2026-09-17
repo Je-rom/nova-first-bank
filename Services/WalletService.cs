@@ -26,12 +26,16 @@ namespace NovaWallet.Services
         {
             var wallet = await _walletRepository.CreateAsync(request.CustomerId, request.Currency);
 
-            _auditLogRepository.Add(AuditLogEntry.Record(
-                entityType: "Wallet",
-                entityId: wallet.Id,
-                action: "WalletCreated",
-                oldValue: null,
-                newValue: "0"));
+            _auditLogRepository.Add(new AuditLogEntry
+            {
+                Id = Guid.NewGuid(),
+                EntityType = "Wallet",
+                EntityId = wallet.Id,
+                Action = "WalletCreated",
+                OldValue = null,
+                NewValue = "0",
+                Timestamp = DateTimeOffset.UtcNow
+            });
 
             await _context.SaveChangesAsync();
 
@@ -87,12 +91,16 @@ namespace NovaWallet.Services
                 CreatedAt = DateTimeOffset.UtcNow
             });
 
-            _auditLogRepository.Add(AuditLogEntry.Record(
-                entityType: "Wallet",
-                entityId: wallet.Id,
-                action: "Credit",
-                oldValue: balanceBefore.ToString(),
-                newValue: wallet.BalanceKobo.ToString()));
+            _auditLogRepository.Add(new AuditLogEntry
+            {
+                Id = Guid.NewGuid(),
+                EntityType = "Wallet",
+                EntityId = wallet.Id,
+                Action = "Credit",
+                OldValue = balanceBefore.ToString(),
+                NewValue = wallet.BalanceKobo.ToString(),
+                Timestamp = DateTimeOffset.UtcNow
+            });
 
             await _context.SaveChangesAsync();
             await dbTransaction.CommitAsync();

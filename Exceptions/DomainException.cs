@@ -3,7 +3,7 @@ namespace NovaWallet.Exceptions
     public abstract class DomainException : Exception
     {
         public abstract int StatusCode { get; }
-        public abstract string ProblemType { get; } // used as the RFC 7807 "type" URI slug
+        public abstract string ProblemType { get; }
 
         protected DomainException(string message) : base(message)
         {

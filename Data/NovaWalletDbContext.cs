@@ -19,7 +19,6 @@ namespace NovaWallet.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // ---------- Wallet ----------
             modelBuilder.Entity<Wallet>(entity =>
             {
                 entity.HasKey(w => w.Id);
@@ -35,7 +34,6 @@ namespace NovaWallet.Data
                 entity.Property(w => w.BalanceKobo)
                     .IsRequired();
 
-                // Speeds up "find wallet(s) for this customer" lookups.
                 entity.HasIndex(w => w.CustomerId);
 
                 entity.HasMany(w => w.Transactions)
@@ -44,14 +42,13 @@ namespace NovaWallet.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // ---------- WalletTransaction ----------
             modelBuilder.Entity<WalletTransaction>(entity =>
             {
                 entity.HasKey(t => t.Id);
 
                 entity.Property(t => t.Type)
                     .IsRequired()
-                    .HasConversion<string>()   //store enum as readable text, not a magic int
+                    .HasConversion<string>()   
                     .HasMaxLength(32);
 
                 entity.Property(t => t.Currency)
@@ -61,15 +58,12 @@ namespace NovaWallet.Data
                 entity.Property(t => t.AmountKobo).IsRequired();
                 entity.Property(t => t.BalanceAfterKobo).IsRequired();
 
-                // Statement queries are always "by wallet, newest first" — this
-                // composite index is what keeps that pagination cheap.
+     
                 entity.HasIndex(t => new { t.WalletId, t.CreatedAt });
 
-                // Lets you fetch both legs of a transfer quickly (e.g. for audits).
                 entity.HasIndex(t => t.RelatedTransferId);
             });
 
-            // ---------- Transfer ----------
             modelBuilder.Entity<Transfer>(entity =>
             {
                 entity.HasKey(t => t.Id);
@@ -96,17 +90,13 @@ namespace NovaWallet.Data
                 entity.Property(t => t.FailureReason)
                     .HasMaxLength(512);
 
-                // THE critical constraint for idempotency: no two Transfer rows
-                // can share a key. This is what makes concurrent replays safe —
-                // only one INSERT with a given key can ever succeed.
+
                 entity.HasIndex(t => t.IdempotencyKey).IsUnique();
 
-                // Speeds up daily-limit calculations ("sum outbound transfers
-                // for this wallet since midnight WAT").
+
                 entity.HasIndex(t => new { t.FromWalletId, t.CreatedAt });
             });
 
-            // ---------- AuditLogEntry ----------
             modelBuilder.Entity<AuditLogEntry>(entity =>
             {
                 entity.HasKey(a => a.Id);
@@ -122,8 +112,7 @@ namespace NovaWallet.Data
                 entity.Property(a => a.ActorId)
                     .HasMaxLength(64);
 
-                // Lets you pull "everything that happened to this entity" fast —
-                // exactly what a judge or auditor would query.
+       
                 entity.HasIndex(a => new { a.EntityType, a.EntityId });
             });
         }

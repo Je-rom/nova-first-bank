@@ -8,7 +8,6 @@ namespace NovaWallet.Repositories
 {
     public class TransferRepository : ITransferRepository
     {
-        // Postgres error code for a unique constraint violation.
         private const string UniqueViolationSqlState = "23505";
 
         private readonly NovaWalletDbContext _context;
@@ -43,9 +42,6 @@ namespace NovaWallet.Repositories
 
             try
             {
-                // Saved on its own, ahead of the wallet-locking work, so a
-                // duplicate request is caught (and short-circuited) before we
-                // ever take row locks on the wallets involved.
                 await _context.SaveChangesAsync();
                 return (true, transfer);
             }
