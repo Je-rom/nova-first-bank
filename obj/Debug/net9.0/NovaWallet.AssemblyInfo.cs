@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NovaWallet")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3bacc460ea90410b99eefc841d4e481e462841a6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d7b16cc473c892a5f8eb397a35aef26ea839d87c")]
 [assembly: System.Reflection.AssemblyProductAttribute("NovaWallet")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NovaWallet")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

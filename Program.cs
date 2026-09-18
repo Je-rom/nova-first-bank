@@ -3,12 +3,16 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NovaWallet.Data;
+using NovaWallet.HealthChecks;
 using NovaWallet.Interfaces;
 using NovaWallet.Middleware;
 using NovaWallet.Repositories;
 using NovaWallet.Services;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+
+System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,7 +64,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 3,
+                PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             });
@@ -95,6 +99,9 @@ builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<ITransferService, TransferService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
 
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" });
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -112,6 +119,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = HealthCheckResponseWriter.WriteJsonResponse
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteJsonResponse
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
